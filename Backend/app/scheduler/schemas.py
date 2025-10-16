@@ -1,15 +1,8 @@
 from pydantic import BaseModel
 from datetime import time, datetime
-from enum import Enum
-
-class AppointmentStatus(str, Enum):
-    pending = "pending"
-    confirmed = "confirmed"
-    cancelled = "cancelled"
 
 
-# === Availability ===
-class AvailabilityCreate(BaseModel):
+class AvailabilityBase(BaseModel):
     studio_id: int
     tattooer_id: int
     weekday: int
@@ -17,24 +10,13 @@ class AvailabilityCreate(BaseModel):
     end_time: time
 
 
-class AvailabilityResponse(AvailabilityCreate):
+class AvailabilityCreate(AvailabilityBase):
+    pass
+
+
+class AvailabilityResponse(AvailabilityBase):
     id: int
-    class Config:
-        from_attributes = True
+    created_at: datetime
 
-
-# === Appointment ===
-class AppointmentCreate(BaseModel):
-    studio_id: int
-    client_id: int
-    tattooer_id: int
-    starts_at: datetime
-    ends_at: datetime
-    notes: str | None = None
-
-
-class AppointmentResponse(AppointmentCreate):
-    id: int
-    status: AppointmentStatus
     class Config:
         from_attributes = True

@@ -3,11 +3,20 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.scheduler import models, schemas
 
-router = APIRouter()
+router = APIRouter()  
 
-# === Crear disponibilidad ===
 @router.post("/availability", response_model=schemas.AvailabilityResponse)
 def create_availability(data: schemas.AvailabilityCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.Availability).filter_by(
+        tattooer_id=data.tattooer_id,
+        weekday=data.weekday,
+        start_time=data.start_time,
+        end_time=data.end_time
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="This availability slot already exists")
+
     availability = models.Availability(**data.dict())
     db.add(availability)
     db.commit()
@@ -15,27 +24,11 @@ def create_availability(data: schemas.AvailabilityCreate, db: Session = Depends(
     return availability
 
 
-# === Crear cita (con validación de solape) ===
-@router.post("/appointments", response_model=schemas.AppointmentResponse)
-def create_appointment(data: schemas.AppointmentCreate, db: Session = Depends(get_db)):
-    conflict = db.query(models.Appointment).filter(
-        models.Appointment.tattooer_id == data.tattooer_id,
-        models.Appointment.status.in_(["pending", "confirmed"]),
-        models.Appointment.starts_at < data.ends_at,
-        models.Appointment.ends_at > data.starts_at
-    ).first()
 
-    if conflict:
-        raise HTTPException(status_code=409, detail="Time slot already booked")
-
-    appointment = models.Appointment(**data.dict())
-    db.add(appointment)
-    db.commit()
-    db.refresh(appointment)
-    return appointment
-
-
-# === Listar citas por tatuador ===
-@router.get("/appointments/tattooer/{tattooer_id}", response_model=list[schemas.AppointmentResponse])
-def list_appointments_by_tattooer(tattooer_id: int, db: Session = Depends(get_db)):
-    return db.query(models.Appointment).filter(models.Appointment.tattooer_id == tattooer_id).all()
+# === Obtener disponibilidades de un tatuador ===
+@router.get("/availability/{tattooer_id}", response_model=list[schemas.AvailabilityResponse])
+def get_availability_by_tattooer(tattooer_id: int, db: Session = Depends(get_db)):
+    records = db.query(models.Availability).filter(models.Availability.tattooer_id == tattooer_id).all()
+    if not records:
+        raise HTTPException(status_code=404, detail="No availability found for this tattooer")
+    return records
