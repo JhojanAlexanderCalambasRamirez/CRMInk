@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt
-from datetime import timedelta
+from datetime import datetime, timedelta
+from passlib.context import CryptContext
 from databases.dbconexion import get_db
 from databases.schemas import User
 from schemas.models_base import UserCreate, UserResponse, Token
@@ -11,18 +12,19 @@ from auth.dependencies import get_current_user
 
 router = APIRouter()
 
+# Configuración segura para passwords
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 def verify_password(plain_password, hashed_password):
-    # Implementar verificación de password
-    return plain_password == "demo"  # Demo simple
+    return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password):
-    # Implementar hash de password
-    return f"hashed_{password}"
+    return pwd_context.hash(password)
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    # Implementar lógica de token real
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -33,7 +35,7 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Crear nuevo usuario (demo - sin hash real)
+    # Crear nuevo usuario con hash seguro
     user = User(
         email=user_data.email,
         full_name=user_data.full_name,
@@ -50,10 +52,14 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
 def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    token = create_access_token({"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):

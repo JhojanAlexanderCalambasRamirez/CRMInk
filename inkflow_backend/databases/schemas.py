@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import ENUM
 from .dbconexion import Base
 import enum
 
+# Usar el mismo nombre que en la base de datos: user_role
 class UserRole(enum.Enum):
     admin = "admin"
     tattooer = "tattooer"
@@ -32,7 +33,8 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
-    role = Column(Enum(UserRole), nullable=False, default=UserRole.client)
+    # Usar user_role que es el tipo existente en la base de datos
+    role = Column(ENUM(UserRole, name="user_role"), nullable=False, default=UserRole.client)
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
